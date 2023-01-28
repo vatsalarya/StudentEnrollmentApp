@@ -8,5 +8,4 @@
         public DateTime ModifiedDate { get; set; }
         public string ModifiedBy { get; set; } = string.Empty;
     }
-
 }
