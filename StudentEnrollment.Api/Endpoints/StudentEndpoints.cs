@@ -1,8 +1,12 @@
 ﻿using AutoMapper;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using StudentEnrollment.Api.DTOs.Course;
+using StudentEnrollment.Api.DTOs.Enrollment;
 using StudentEnrollment.Api.DTOs.Student;
+using StudentEnrollment.Api.Filters;
+using StudentEnrollment.Api.Services;
 using StudentEnrollment.Data;
 using StudentEnrollment.Data.Contracts;
 
@@ -48,8 +52,15 @@ public static class StudentEndpoints
         .Produces<StudentDetailsDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        routes.MapPut("/api/Student/{id}", [Authorize(Roles = "Administrator")] async (int Id, StudentDto studentDto, IStudentRepository repo, IMapper mapper) =>
+        routes.MapPut("/api/Student/{id}", [Authorize(Roles = "Administrator")] async (int Id, StudentDto studentDto, IStudentRepository repo, IMapper mapper, IValidator<StudentDto> validator, IFileUpload fileUpload) =>
         {
+            var validationResult = await validator.ValidateAsync(studentDto);
+
+            if (!validationResult.IsValid)
+            {
+                return Results.BadRequest(validationResult.ToDictionary());
+            }
+
             var foundModel = await repo.GetAsync(Id);
 
             if (foundModel is null)
@@ -58,6 +69,12 @@ public static class StudentEndpoints
             }
             //update model properties here
             mapper.Map(studentDto, foundModel);
+
+            if (studentDto.ProfilePicture!= null)
+            {
+                foundModel.Picture = fileUpload.UploadStudentFile(studentDto.ProfilePicture, studentDto.OriginalFileName);
+            }
+
             await repo.UpdateAsync(foundModel);
             return Results.NoContent();
         })
@@ -66,12 +83,24 @@ public static class StudentEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status204NoContent);
 
-        routes.MapPost("/api/Student/", [Authorize(Roles = "Administrator")] async (CreateStudentDto studentDto, IStudentRepository repo, IMapper mapper) =>
+        routes.MapPost("/api/Student/", [Authorize(Roles = "Administrator")] async (CreateStudentDto studentDto, IStudentRepository repo, IMapper mapper, IValidator<CreateStudentDto> validator, IFileUpload fileUpload) =>
         {
+            var validationResult = await validator.ValidateAsync(studentDto);
+
+            if (!validationResult.IsValid)
+            {
+                return Results.BadRequest(validationResult.ToDictionary());
+            }
+
             var student = mapper.Map<Student>(studentDto);
+
+            student.Picture = fileUpload.UploadStudentFile(studentDto.ProfilePicture, studentDto.OriginalFileName);
+
             await repo.AddAsync(student);
             return Results.Created($"/Students/{student.Id}", student);
         })
+        .AddEndpointFilter<ValidatationFilter<CreateStudentDto>>()
+        .AddEndpointFilter<LoggingFilter>()
         .WithTags(nameof(Student))
         .WithName("CreateStudent")
         .Produces<Student>(StatusCodes.Status201Created);

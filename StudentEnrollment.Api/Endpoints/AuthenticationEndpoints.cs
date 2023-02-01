@@ -7,6 +7,10 @@ using StudentEnrollment.Api.DTOs.Authentication;
 using StudentEnrollment.Api.Services;
 using StudentEnrollment.Api.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using FluentValidation;
+using Microsoft.AspNetCore.Http.HttpResults;
+using System.ComponentModel.DataAnnotations;
+using StudentEnrollment.Api.Filters;
 
 namespace StudentEnrollment.Api.Endpoints
 {
@@ -14,7 +18,7 @@ namespace StudentEnrollment.Api.Endpoints
     {
         public static void MapAuthenticationEndpoints(this IEndpointRouteBuilder routes)
         {
-            routes.MapPost("/api/login/", async (LoginDto loginDto, IAuthManager authManager) =>
+            routes.MapPost("/api/login/", async (LoginDto loginDto, IAuthManager authManager, IValidator<LoginDto> validator) =>
             {
                 var response = await authManager.Login(loginDto);
 
@@ -26,13 +30,14 @@ namespace StudentEnrollment.Api.Endpoints
                 return Results.Ok(response);
 
             })
+            .AddEndpointFilter<ValidatationFilter<LoginDto>>()
             .AllowAnonymous()
             .WithTags("Authentication")
             .WithName("Login")
             .Produces(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized);
 
-            routes.MapPost("/api/register/", async (RegisterDto registerDto, IAuthManager authManager) =>
+            routes.MapPost("/api/register/", async (RegisterDto registerDto, IAuthManager authManager, IValidator<RegisterDto> validator) =>
             {
                 var response = await authManager.Register(registerDto);
 
@@ -54,6 +59,7 @@ namespace StudentEnrollment.Api.Endpoints
                 return Results.BadRequest(errors);
 
             })
+            .AddEndpointFilter<ValidatationFilter<RegisterDto>>()
             .AllowAnonymous()
             .WithTags("Authentication")
             .WithName("Register")
